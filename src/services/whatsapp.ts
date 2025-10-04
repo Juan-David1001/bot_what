@@ -1,151 +1,221 @@
-import qrcode from 'qrcode-terminal';
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import makeWASocket, {
+  ConnectionState,
+  DisconnectReason,
+  useMultiFileAuthState,
+  downloadMediaMessage,
+  WAMessage,
+  WASocket,
+  MessageUpsertType,
+  isJidGroup,
+  jidNormalizedUser,
+} from '@whiskeysockets/baileys';
+import QRCode from 'qrcode';
+import pino from 'pino';
+import fs from 'fs';
+import path from 'path';
 
-// Crear un nuevo directorio temporal único para cada sesión
-const sessionDir = `.wwebjs_auth_${Date.now()}`;
+// Logger configuration
+const logger = pino({ level: 'silent' }); // Use 'info' for debugging
 
-const client = new Client({
-  authStrategy: new LocalAuth({
-    clientId: 'wp-bot-client',
-    dataPath: sessionDir
-  }),
-  puppeteer: {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-composition',
-      '--no-first-run',
-      '--single-process',
-      '--disable-gpu'
-    ],
-    ignoreHTTPSErrors: true,
-    handleSIGINT: false,
-    handleSIGTERM: false,
-    handleSIGHUP: false,
-  },
-  restartOnAuthFail: false,
-  qrMaxRetries: 5,
-  disableSpins: true,
-});
+let sock: WASocket | null = null;
+let qrCodeGenerated = false;
 
-console.log('Creating WhatsApp client (whatsapp-web.js)');
+// Auth state directory
+const authDir = path.join(process.cwd(), '.baileys_auth');
 
-client.on('qr', (qr: string) => {
-  qrcode.generate(qr, { small: true });
-  console.log('🔲 QR code received, scan with your phone.');
-  console.log('⏳ Waiting for authentication...');
-});
+console.log('Creating WhatsApp client (Baileys)');
 
-client.on('authenticated', () => {
-  console.log('✅ WhatsApp authenticated successfully');
-});
+// Ensure auth directory exists
+if (!fs.existsSync(authDir)) {
+  fs.mkdirSync(authDir, { recursive: true });
+}
 
-client.on('ready', () => {
-  console.log('✅ WhatsApp client is ready');
-});
-
-client.on('auth_failure', (msg: any) => {
-  console.error('❌ Authentication failure:', msg);
-  console.log('💡 Solution: Delete .wwebjs_auth folder and scan QR again');
-});
-
-// Escuchar mensajes entrantes de WhatsApp
-client.on('message', async (msg: any) => {
+export async function initializeWhatsApp(): Promise<void> {
   try {
-    // Ignorar mensajes enviados por nosotros
-    if (msg.fromMe) {
-      return;
-    }
+    // Use multi-file auth state for better reliability
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
-    // Verificar si tiene contenido
-    const hasContent = msg.body && msg.body.trim() !== '';
-    const isMedia = msg.hasMedia;
-    
-    if (!hasContent && !isMedia) {
-      return;
-    }
-
-    console.log('📩 WhatsApp mensaje recibido:', {
-      from: msg.from,
-      body: msg.body || '[imagen]',
-      hasMedia: isMedia,
+    sock = makeWASocket({
+      logger,
+      auth: state,
+      printQRInTerminal: false, // We'll handle QR display ourselves
+      defaultQueryTimeoutMs: 60000,
     });
 
-    // Procesar el mensaje a través del sistema MCP
-    const { handleClientMessage } = await import('../controllers/mcpController');
-    
-    const mockReq = {
-      body: {
-        message: msg.body || 'Imagen recibida',
-        contactNumber: msg.from,
-        channel: 'whatsapp',
-        isMedia: isMedia,
-        mediaType: isMedia ? msg.type : undefined,
-      },
-    } as any;
+    // Handle connection updates
+    sock.ev.on('connection.update', async (update: Partial<ConnectionState>) => {
+      const { connection, lastDisconnect, qr } = update;
 
-    const mockRes = {
-      json: (data: any) => {
-        console.log('📤 Respuesta procesada');
-        return mockRes;
-      },
-      status: (code: number) => {
-        console.error('❌ Error al procesar, status:', code);
-        return mockRes;
-      },
-    } as any;
+      if (qr && !qrCodeGenerated) {
+        console.log('🔲 QR code received, scan with your phone:');
+        console.log('⏳ Waiting for authentication...\n');
+        
+        try {
+          // Generate QR in terminal
+          const qrString = await QRCode.toString(qr, { 
+            type: 'terminal',
+            small: true 
+          });
+          console.log(qrString);
+          qrCodeGenerated = true;
+        } catch (err) {
+          console.error('Error generating QR code:', err);
+        }
+      }
 
-    await handleClientMessage(mockReq, mockRes);
-  } catch (error: any) {
-    console.error('❌ Error procesando mensaje:', error.message);
-  }
-});
-
-console.log('⏳ Initializing WhatsApp client...');
-client.initialize();
-
-// Desactivar completamente el manejo de desconexiones
-// No haremos nada cuando WhatsApp se desconecte para evitar el error EBUSY
-client.on('disconnected', (reason: any) => {
-  console.log('⚠️ Desconexión detectada:', reason);
-  // No hacemos nada para evitar que intente eliminar archivos en uso
-  
-  // Simplemente volvemos a mostrar el QR para reconectar
-  console.log('Escanea el QR nuevamente cuando aparezca');
-});
-
-// Enviar mensaje de WhatsApp de manera segura
-export async function sendWhatsAppMessage(to: string, message: string) {
-  try {
-    // No enviamos mensajes si el cliente no está listo
-    if (!client.info) {
-      console.warn('⚠️ Cliente WhatsApp no está listo, omitiendo mensaje');
-      return null;
-    }
-    
-    // Verificamos formato del número
-    const formattedTo = to.includes('@c.us') ? to : `${to}@c.us`;
-    
-    // Timeout para evitar bloqueos
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Timeout sending message')), 5000);
+      if (connection === 'close') {
+        const shouldReconnect = 
+          (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+        
+        console.log('Connection closed due to:', lastDisconnect?.error);
+        
+        if (shouldReconnect) {
+          console.log('Reconnecting...');
+          qrCodeGenerated = false;
+          setTimeout(() => initializeWhatsApp(), 3000);
+        } else {
+          console.log('Logged out. Please restart the application.');
+        }
+      } else if (connection === 'open') {
+        console.log('✅ WhatsApp client is ready and connected!');
+        qrCodeGenerated = false;
+      }
     });
-    
-    // Intento con timeout
-    const res = await Promise.race([
-      client.sendMessage(formattedTo, message),
-      timeoutPromise
-    ]);
-    
-    console.log('✅ Mensaje enviado a:', formattedTo.split('@')[0]);
-    return res;
-  } catch (err: any) {
-    // Error controlado
-    console.error('❌ Error enviando mensaje:', err.message);
-    return null;
+
+    // Save credentials on creds update
+    sock.ev.on('creds.update', saveCreds);
+
+    // Handle incoming messages
+    sock.ev.on('messages.upsert', async ({ messages, type }: { messages: WAMessage[], type: MessageUpsertType }) => {
+      if (type === 'notify') {
+        for (const message of messages) {
+          await handleIncomingMessage(message);
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error initializing WhatsApp:', error);
+    throw error;
   }
 }
 
-export default client;
+async function handleIncomingMessage(message: WAMessage): Promise<void> {
+  try {
+    // Skip if no message content or if it's from a group
+    if (!message.message || !message.key.remoteJid || isJidGroup(message.key.remoteJid)) {
+      return;
+    }
+
+    // Extract message text
+    const messageText = 
+      message.message.conversation ||
+      message.message.extendedTextMessage?.text ||
+      '';
+
+    // Skip empty messages
+    if (!messageText.trim()) {
+      return;
+    }
+
+    // Normalize phone number (remove @s.whatsapp.net)
+    const from = jidNormalizedUser(message.key.remoteJid || '');
+    const phoneNumber = from.replace('@s.whatsapp.net', '');
+    
+    console.log('📩 INCOMING WhatsApp message:');
+    console.log('  From:', phoneNumber);
+    console.log('  Body:', messageText);
+    console.log('  Timestamp:', new Date().toISOString());
+    console.log('  Message ID:', message.key.id);
+
+    // Process message through MCP controller
+    try {
+      const { handleClientMessage } = await import('../controllers/mcpController');
+      
+      // Create mock request/response objects
+      const mockReq = {
+        body: {
+          message: messageText,
+          contactNumber: phoneNumber,
+          channel: 'whatsapp',
+        },
+      } as any;
+
+      const mockRes = {
+        status: (code: number) => ({
+          json: (data: any) => {
+            console.log(`MCP Response Status ${code}:`, data);
+            return mockRes;
+          },
+        }),
+        json: (data: any) => {
+          console.log('MCP Response:', data.success ? '✅ Success' : '❌ Error');
+          if (data.error) {
+            console.error('MCP Error:', data.error);
+          }
+          return mockRes;
+        },
+      } as any;
+
+      // Process the message through MCP
+      await handleClientMessage(mockReq, mockRes);
+      console.log('✅ Message processed through MCP system');
+      
+    } catch (mcpError) {
+      console.error('❌ Error processing message through MCP:', mcpError);
+      
+      // Send error message to user
+      try {
+        await sendWhatsAppMessage(
+          from,
+          'Lo siento, hubo un error procesando tu mensaje. Por favor intenta nuevamente en unos momentos.'
+        );
+      } catch (sendError) {
+        console.error('❌ Error sending error message:', sendError);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error handling incoming message:', error);
+  }
+}
+
+export async function sendWhatsAppMessage(to: string, message: string): Promise<any> {
+  console.log('sendWhatsAppMessage: to=', to);
+  console.log('sendWhatsAppMessage: messagePreview=', message.slice(0, 160));
+  
+  if (!sock) {
+    console.error('sendWhatsAppMessage: WhatsApp client not initialized');
+    throw new Error('WhatsApp client not initialized');
+  }
+
+  try {
+    // Ensure the phone number is in the correct format
+    let formattedNumber = to;
+    if (!to.includes('@s.whatsapp.net')) {
+      // Remove any non-digit characters except +
+      const cleanNumber = to.replace(/[^\d+]/g, '');
+      formattedNumber = `${cleanNumber}@s.whatsapp.net`;
+    }
+
+    const result = await sock.sendMessage(formattedNumber, { text: message });
+    console.log('✅ sendWhatsAppMessage: success to=', to);
+    console.log('📤 OUTGOING WhatsApp message sent');
+    
+    return result;
+  } catch (error) {
+    console.error('❌ sendWhatsAppMessage: failed', error);
+    throw error;
+  }
+}
+
+export function isWhatsAppReady(): boolean {
+  return sock !== null;
+}
+
+export function getWhatsAppSocket(): WASocket | null {
+  return sock;
+}
+
+// Auto-initialize when module is imported
+initializeWhatsApp().catch(console.error);
