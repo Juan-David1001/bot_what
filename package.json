@@ -1,0 +1,53 @@
+{
+  "name": "wp_bot-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "echo": "ts-node src/whatsapp_echo.ts",
+    "test-wa": "ts-node src/whatsapp_test.ts",
+    "simple": "ts-node src/simplified_whatsapp.ts",
+    "basic": "node src/basic_whatsapp.js",
+    "build": "tsc -p .",
+    "start": "node dist/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "lint": "eslint 'src/**/*.{ts,tsx}' --fix",
+    "format": "prettier --write 'src/**/*.{ts,tsx,js,json,md}'",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@google/genai": "^0.4.0",
+    "@prisma/client": "^5.8.0",
+    "axios": "^1.4.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.18.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.23",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/supertest": "^2.0.12",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^8.8.0",
+    "jest": "^29.0.0",
+    "prettier": "^2.8.8",
+    "prisma": "^5.8.0",
+    "supertest": "^6.3.0",
+    "ts-jest": "^29.0.0",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.2.2"
+  },
+  "prisma": {
+    "seed": "npm run prisma:seed"
+  }
+}

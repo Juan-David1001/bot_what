@@ -1,0 +1,3 @@
+- Proyecto scaffold creado: backend Node.js con TypeScript, Express y Jest.
+- Archivos incluidos: package.json, tsconfig.json, .eslintrc.cjs, .prettierrc, .gitignore, src/, tests/, README.md, .env.example, Dockerfile.
+- Siguientes pasos: instalar dependencias y ejecutar `npm run dev` para desarrollo.

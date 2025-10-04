@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Handoff - Euforia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .sessions {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .session-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        
+        .session-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .session-info h3 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .session-info .contact {
+            color: #666;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-bot {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status-human {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+        
+        .session-details {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+        
+        .detail-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .detail-value {
+            color: #333;
+        }
+        
+        .reason-badge {
+            background: #f3e5f5;
+            color: #7b1fa2;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-activate {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .btn-activate:hover:not(:disabled) {
+            background: #45a049;
+        }
+        
+        .btn-refresh {
+            background: #2196f3;
+            color: white;
+            flex: 0 0 auto;
+            padding: 10px 30px;
+        }
+        
+        .btn-refresh:hover {
+            background: #1976d2;
+        }
+        
+        .empty-state {
+            background: white;
+            padding: 60px 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+        
+        .empty-state h3 {
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .empty-state p {
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .success-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4caf50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            animation: slideIn 0.3s ease-out;
+            z-index: 1000;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Panel de Gestión de Handoff</h1>
+            <p>Administra las conversaciones transferidas a agentes humanos</p>
+        </div>
+        
+        <div id="error-container"></div>
+        <div id="loading" class="loading">Cargando sesiones...</div>
+        <div id="sessions-container" class="sessions" style="display: none;"></div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:3000';
+        
+        async function loadSessions() {
+            const loading = document.getElementById('loading');
+            const container = document.getElementById('sessions-container');
+            const errorContainer = document.getElementById('error-container');
+            
+            try {
+                loading.style.display = 'block';
+                container.style.display = 'none';
+                errorContainer.innerHTML = '';
+                
+                const response = await fetch(`${API_URL}/mcp/handoffs`);
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                container.style.display = 'grid';
+                
+                if (!data.sessions || data.sessions.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <h3>No hay sesiones en handoff</h3>
+                            <p>Todas las conversaciones están siendo manejadas por el bot</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = data.sessions.map(session => `
+                    <div class="session-card">
+                        <div class="session-header">
+                            <div class="session-info">
+                                <h3>Sesión #${session.id}</h3>
+                                <div class="contact">${session.contact.number}</div>
+                            </div>
+                            <span class="status-badge status-${session.handoff ? 'human' : 'bot'}">
+                                ${session.handoff ? '👤 HUMANO' : '🤖 BOT'}
+                            </span>
+                        </div>
+                        
+                        <div class="session-details">
+                            ${session.handoffReason ? `
+                                <div class="detail-row">
+                                    <span class="detail-label">Razón:</span>
+                                    <span class="reason-badge">${formatReason(session.handoffReason)}</span>
+                                </div>
+                            ` : ''}
+                            
+                            ${session.handoffStartedAt ? `
+                                <div class="detail-row">
+                                    <span class="detail-label">Iniciado:</span>
+                                    <span class="timestamp">${formatDate(session.handoffStartedAt)}</span>
+                                </div>
+                            ` : ''}
+                            
+                            ${session.assignedAgentId ? `
+                                <div class="detail-row">
+                                    <span class="detail-label">Agente:</span>
+                                    <span class="detail-value">${session.assignedAgentId}</span>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="detail-row">
+                                <span class="detail-label">Estado sesión:</span>
+                                <span class="detail-value">${session.status}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="actions">
+                            <button 
+                                class="btn-activate" 
+                                onclick="activateBot(${session.id}, '${session.contact.number}')"
+                                ${!session.handoff ? 'disabled' : ''}
+                            >
+                                ✅ Reactivar Bot
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                loading.style.display = 'none';
+                errorContainer.innerHTML = `
+                    <div class="error">
+                        ⚠️ Error al cargar sesiones: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        async function activateBot(sessionId, contactNumber) {
+            try {
+                const response = await fetch(`${API_URL}/mcp/handoffs/${sessionId}/reactivate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('✅ Bot reactivado exitosamente');
+                    await loadSessions();
+                } else {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+            } catch (error) {
+                alert('Error al reactivar bot: ' + error.message);
+            }
+        }
+        
+        function formatReason(reason) {
+            const reasons = {
+                'purchase_request': '💳 Solicitud de compra',
+                'payment_proof': '📸 Comprobante de pago',
+                'manual': '👋 Manual'
+            };
+            return reasons[reason] || reason;
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000 / 60); // minutos
+            
+            if (diff < 1) return 'Justo ahora';
+            if (diff < 60) return `Hace ${diff} min`;
+            if (diff < 1440) return `Hace ${Math.floor(diff / 60)}h`;
+            
+            return date.toLocaleString('es-CO', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'success-toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+        
+        // Auto-refresh cada 10 segundos
+        setInterval(loadSessions, 10000);
+        
+        // Cargar al inicio
+        loadSessions();
+    </script>
+</body>
+</html>
