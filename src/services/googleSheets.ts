@@ -9,7 +9,7 @@ import path from 'path';
 const SPREADSHEET_ID = '1p79w-78L2WOVp8qiomaCvTpe-iEyN714eaR3gIc_0Ec';
 
 // Nombres exactos de las hojas (case-sensitive según listSheets.ts)
-const BUSINESS_INFO_SHEET = 'Hoja 1'; // Información del negocio (Campo | Valor)
+const BUSINESS_INFO_SHEET = 'Informacion'; // Información del negocio (Campo | Valor)
 const PRODUCTS_SHEET = 'Productos'; // Catálogo de productos
 const SESSIONS_SHEET = 'Estado_Contactos'; // Estados de sesiones y handoff
 const MESSAGES_SHEET = 'Mensajes'; // Log de mensajes
