@@ -18,3 +18,7 @@ logs
 # Database files
 dev.db
 prisma/dev.db
+
+# Google Cloud credentials
+gen-lang-client-*.json
+*-service-account*.json
