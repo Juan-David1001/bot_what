@@ -424,18 +424,34 @@ async function detectRequiredTools(
     tools.push({ name: 'get_business_info', arguments: {} });
   }
 
-  // Detección de intención de compra/orden
-  if (
-    lowerMessage.includes('comprar') ||
-    lowerMessage.includes('quiero') ||
-    lowerMessage.includes('llevar') ||
-    lowerMessage.includes('pedir') ||
-    lowerMessage.includes('orden') ||
-    lowerMessage.includes('pedido')
-  ) {
-    // Necesitaríamos extraer contactNumber del contexto
-    // Por ahora solo detectamos la intención
-    console.log('💰 Intención de compra detectada - requiere manejo manual');
+  // Detección de intención de compra/orden (CLARA Y ESPECÍFICA)
+  const purchaseKeywords = [
+    'lo quiero',
+    'lo compro',
+    'me lo llevo',
+    'donde lo recojo',
+    'dónde lo recojo',
+    'donde puedo recoger',
+    'dónde puedo recoger',
+    'como pago',
+    'cómo pago',
+    'donde pago',
+    'dónde pago',
+    'hacer el pago',
+    'realizar el pago',
+    'procesar el pedido',
+    'confirmar la compra',
+    'comprar el',
+    'comprar la',
+  ];
+
+  const hasPurchaseIntent = purchaseKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  // Si menciona un producto específico O pregunta por proceso de compra
+  if (hasPurchaseIntent || (lowerMessage.includes('comprar') && (lowerMessage.includes('donde') || lowerMessage.includes('dónde') || lowerMessage.includes('como') || lowerMessage.includes('cómo')))) {
+    console.log('💰 Intención de compra CLARA detectada - Gemini manejará handoff');
+    // No agregamos tool, pero el sistema sabrá que debe hacer handoff
+    // Gemini responderá indicando transferencia a agente humano
   }
 
   return tools;
